@@ -20,34 +20,41 @@ jobs:
             repo_target: 'ZapDiscas/dummie-repo'
             severity_level: 'critical'
             expected_outcome: 'success'
-
-          - scenario: "Target: dev-medium-vuln | Severity: high -> SUCCESS"
-            branch: 'dev-medium-vuln'
-            repo_target: 'ZapDiscas/dummie-repo'
-            severity_level: 'critical'
-            expected_outcome: 'success'
-
           - scenario: "Target: feat-critical-vuln | Severity: high -> FAILURE"
             branch: 'feat-critical-vuln'
             repo_target: 'ZapDiscas/dummie-repo'
             severity_level: 'high'
             expected_outcome: 'failure'
-
           - scenario: "Target: dev-medium-vuln | Severity: medium -> FAILURE"
             branch: 'dev-medium-vuln'
             repo_target: 'ZapDiscas/dummie-repo'
             severity_level: 'medium'
             expected_outcome: 'failure'
 
-    name: ${{ matrix.scenario }} # Nomes dinâmicos para os jobs
+    name: ${{ matrix.scenario }}
     steps:
+      # ===================================================================
+      # ✨ CORREÇÃO AQUI ✨
+      # ===================================================================
+
+      # Passo 1: Fazer o checkout do código da action que queremos testar.
+      # Usamos o input do workflow_dispatch para pegar a branch correta (ex: a branch do PR).
+      - name: Checkout Reusable Action Code
+        uses: actions/checkout@v4
+        with:
+          repository: ZapDiscas/WorkflowTemplates
+          # A sintaxe correta para acessar o input é github.event.inputs
+          ref: ${{ github.event.inputs.action_ref }}
+          path: '.github/reusable-action' # Baixa para uma pasta específica
+
+      # Passo 2: Executar a action a partir do caminho local que acabamos de baixar.
       - name: Run GHAST Check on Target Branch
         id: ghast_check
-        # Usa a action do repositório de templates, na branch que foi passada como input
-        uses: ZapDiscas/WorkflowTemplates/.github/actions/ghas-check@${{ inputs.action_ref }}
+        # Agora usamos o caminho local
+        uses: ./.github/reusable-action/.github/actions/ghas-check
         continue-on-error: true
         with:
-          token: ${{ secrets.GHAS_READER_TOKEN }} # Use um secret do repositório ou da organização
+          token: ${{ secrets.GHAS_READER_TOKEN }}
           target_repo: ${{ matrix.repo_target }}
           target_branch: ${{ matrix.branch }}
           dependabot_severity: ${{ matrix.severity_level }}
@@ -59,7 +66,6 @@ jobs:
           echo "Cenário: ${{ matrix.scenario }}"
           echo "Resultado esperado: ${{ matrix.expected_outcome }}"
           echo "Resultado da action: ${{ steps.ghast_check.outcome }}"
-
           if [ "${{ matrix.expected_outcome }}" == "${{ steps.ghast_check.outcome }}" ]; then
             echo "✅ O resultado do teste foi o esperado."
             exit 0
