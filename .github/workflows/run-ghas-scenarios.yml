@@ -1,0 +1,69 @@
+name: "Run GHAST Action Scenarios"
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_ref:
+        description: "A branch/ref da action a ser testada em ZapDiscas/WorkflowTemplates"
+        required: true
+        default: 'main'
+
+jobs:
+  test-action-scenarios:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scenario: "Target: main | Severity: critical -> SUCCESS"
+            branch: 'main'
+            repo_target: 'ZapDiscas/dummie-repo'
+            severity_level: 'critical'
+            expected_outcome: 'success'
+
+          - scenario: "Target: dev-medium-vuln | Severity: high -> SUCCESS"
+            branch: 'dev-medium-vuln'
+            repo_target: 'ZapDiscas/dummie-repo'
+            severity_level: 'critical'
+            expected_outcome: 'success'
+
+          - scenario: "Target: feat-critical-vuln | Severity: high -> FAILURE"
+            branch: 'feat-critical-vuln'
+            repo_target: 'ZapDiscas/dummie-repo'
+            severity_level: 'high'
+            expected_outcome: 'failure'
+
+          - scenario: "Target: dev-medium-vuln | Severity: medium -> FAILURE"
+            branch: 'dev-medium-vuln'
+            repo_target: 'ZapDiscas/dummie-repo'
+            severity_level: 'medium'
+            expected_outcome: 'failure'
+
+    name: ${{ matrix.scenario }} # Nomes dinâmicos para os jobs
+    steps:
+      - name: Run GHAST Check on Target Branch
+        id: ghast_check
+        # Usa a action do repositório de templates, na branch que foi passada como input
+        uses: ZapDiscas/WorkflowTemplates/.github/actions/ghas-check@${{ inputs.action_ref }}
+        continue-on-error: true
+        with:
+          token: ${{ secrets.GHAS_READER_TOKEN }} # Use um secret do repositório ou da organização
+          target_repo: ${{ matrix.repo_target }}
+          target_branch: ${{ matrix.branch }}
+          dependabot_severity: ${{ matrix.severity_level }}
+          codeql_severity: ${{ matrix.severity_level }}
+
+      - name: Validate Test Outcome
+        shell: bash
+        run: |
+          echo "Cenário: ${{ matrix.scenario }}"
+          echo "Resultado esperado: ${{ matrix.expected_outcome }}"
+          echo "Resultado da action: ${{ steps.ghast_check.outcome }}"
+
+          if [ "${{ matrix.expected_outcome }}" == "${{ steps.ghast_check.outcome }}" ]; then
+            echo "✅ O resultado do teste foi o esperado."
+            exit 0
+          else
+            echo "❌ O resultado do teste foi diferente do esperado!"
+            exit 1
+          fi
